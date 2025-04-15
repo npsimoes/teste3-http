@@ -1,0 +1,20 @@
+name: "Correr o SonarCloud"
+on:
+  workflow_dispatch:
+
+jobs:
+  Correr_SonarCloud:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+            fetch-depth: 0
+      - name: SonarCloud Scan
+        uses: SonarSource/sonarqube-scan-action@v3
+        env:
+            GITHUB_TOKEN: ${{ secrets.ACCESS_GITHUB_SECRETS }}
+            SONAR_TOKEN: ${{ secrets.SONARQUBE_SECRETS }}
+        with:
+         args: |
+            -Dsonar.organization=npsimoes
+            -Dsonar.projectKey=teste1_certificado

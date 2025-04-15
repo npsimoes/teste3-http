@@ -1,0 +1,66 @@
+name: Destroy EC2 com Ansible
+
+on:
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: "us-east-1"
+  TF_VERSION: "1.5.0"
+  S3_BUCKET: "meu-bucket-ansible1"
+  DYNAMODB_TABLE: "lock-ansible"
+
+jobs:
+  destroy:
+    name: "Terraform-Ansible Destroy"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+
+      - name: Assume AWS Role
+        uses: aws-actions/configure-aws-credentials@v3
+        with:
+          role-to-assume: ${{ secrets.AWS_ASSUME_ROLE_ARN }}
+          role-session-name: GitHub_to_AWS_via_FederatedOIDC
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Terraform Init (Ansible)
+        run: |
+          cd ansible
+          terraform init -reconfigure
+
+      - name: Terraform Destroy (Ansible)
+        run: |
+          cd ansible
+          terraform destroy -var "vpc_id=${{ env.VPC_ID }}" \
+                            -var "subnet_id=${{ env.SUBNET_ID }}" \
+                            -var "key_pair_name=${{ env.KEY_PAIR_NAME }}" \
+                            -var "private_key_pem=${{ env.PRIVATE_KEY }}" \
+                            -auto-approve
+
+      - name: Remover S3 Bucket (se estiver vazio)
+        run: |
+          if aws s3 ls "s3://${{ env.S3_BUCKET }}" 2>/dev/null; then
+            echo "Removendo bucket S3..."
+            aws s3 rb s3://${{ env.S3_BUCKET }} --force
+          else
+            echo "O bucket não existe."
+          fi
+
+      - name: Remover DynamoDB Table (se existir)
+        run: |
+          if aws dynamodb describe-table --table-name ${{ env.DYNAMODB_TABLE }} 2>/dev/null; then
+            echo "Removendo tabela DynamoDB..."
+            aws dynamodb delete-table --table-name ${{ env.DYNAMODB_TABLE }}
+          else
+            echo "A tabela DynamoDB não existe."
+          fi

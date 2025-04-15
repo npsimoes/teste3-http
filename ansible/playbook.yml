@@ -1,0 +1,123 @@
+- hosts: webservers
+  become: yes
+  tasks:
+
+    - name: Atualizar pacotes do sistema
+      apt:
+        update_cache: yes
+        upgrade: dist
+
+    - name: Remover pacotes conflitantes
+      apt:
+        name:
+          - libapache2-mod-python
+        state: absent
+
+    - name: Instalar Apache e suporte a CGI
+      apt:
+        name:
+          - apache2
+          - python3
+          - python3-pip
+          - libapache2-mod-wsgi-py3
+        state: present
+
+    - name: Ativar módulo CGI no Apache
+      shell: a2enmod cgi
+      notify: Reiniciar Apache
+
+    - name: Criar diretório para scripts CGI
+      file:
+        path: /var/www/html/cgi-bin
+        state: directory
+        owner: www-data
+        group: www-data
+        mode: '0755'
+
+    - name: Criar página HTML principal (chama o script CGI)
+      copy:
+        dest: /var/www/html/index.html
+        mode: '0644'
+        content: |
+          <!DOCTYPE html>
+          <html lang="pt">
+          <head>
+              <meta charset="UTF-8">
+              <meta name="viewport" content="width=device-width, initial-scale=1.0">
+              <title>Página Inicial</title>
+          </head>
+          <body>
+              <h1>Universidade de Coimbra</h1>
+              <p><a href="/cgi-bin/system_info.py">Ver Informações do Servidor</a></p>
+          </body>
+          </html>
+
+    - name: Criar script CGI Python para exibir hostname e uptime
+      copy:
+        dest: /var/www/html/cgi-bin/system_info.py
+        owner: www-data
+        group: www-data
+        mode: '0755'
+        content: |
+          #!/usr/bin/env python3
+          import os
+          import socket
+          import subprocess
+
+          print("Content-type: text/html\n")
+          print("<html>")
+          print("<head><title>Informações do Servidor</title></head>")
+          print("<body>")
+          print("<h1>Universidade de Coimbra - Mestrado Segurança Informática</h1>")
+          print(f"<p><strong>Hostname:</strong> {socket.gethostname()}</p>")
+          print(f"<p><strong>Tempo de Atividade (Uptime):</strong> {subprocess.getoutput('uptime -p')}</p>")
+          print("</body></html>")
+
+    - name: Configurar Apache para permitir execução de CGI
+      copy:
+        dest: /etc/apache2/sites-available/000-default.conf
+        mode: '0644'
+        content: |
+          <VirtualHost *:80>
+              ServerAdmin webmaster@localhost
+              DocumentRoot /var/www/html
+
+              ScriptAlias /cgi-bin/ /var/www/html/cgi-bin/
+              <Directory "/var/www/html/cgi-bin">
+                  AllowOverride None
+                  Options +ExecCGI
+                  Require all granted
+                  AddHandler cgi-script .py
+              </Directory>
+
+              ErrorLog ${APACHE_LOG_DIR}/error.log
+              CustomLog ${APACHE_LOG_DIR}/access.log combined
+          </VirtualHost>
+      notify: Reiniciar Apache
+
+    - name: Testar configuração do Apache antes de reiniciar
+      command: apachectl configtest
+      register: apache_configtest
+      ignore_errors: yes
+
+    - name: Exibir erro de configuração do Apache, se houver
+      debug:
+        msg: "{{ apache_configtest.stderr }}"
+      when: apache_configtest.rc != 0
+
+    - name: Abrir porta 80 no UFW
+      ufw:
+        rule: allow
+        port: "80"
+        proto: tcp
+
+    - name: Garantir que o Apache está ativado no boot
+      service:
+        name: apache2
+        enabled: yes
+
+  handlers:
+    - name: Reiniciar Apache
+      systemd:
+        name: apache2
+        state: restarted

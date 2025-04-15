@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Página Inicial</title>
+</head>
+<body>
+    <h1>Universidade de Coimbra - Mestrado de Segurança Informática</h1>
+    <p><strong>Endereço IP:</strong> <span id="ip"></span></p>
+    <p><strong>Hostname:</strong> <span id="hostname"></span></p>
+    <p><strong>Data e Hora Atual:</strong> <span id="datetime"></span></p>
+    <p><strong>Tempo de Atividade (uptime):</strong> <span id="uptime"></span></p>
+
+    <script>
+        // Atualiza a data e hora
+        document.getElementById('datetime').innerText = new Date().toLocaleString();
+
+        // Obtém o IP público via API pública
+        fetch('https://api64.ipify.org?format=json')
+            .then(response => response.json())
+            .then(data => document.getElementById('ip').innerText = data.ip)
+            .catch(() => document.getElementById('ip').innerText = "Não disponível");
+
+        // Obtém informações do servidor
+        fetch('/server-info')
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('hostname').innerText = data.hostname;
+                document.getElementById('uptime').innerText = data.uptime;
+            })
+            .catch(() => {
+                document.getElementById('hostname').innerText = "Não disponível";
+                document.getElementById('uptime').innerText = "Não disponível";
+            });
+    </script>
+</body>
+</html>
+
