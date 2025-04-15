@@ -17,4 +17,4 @@ jobs:
         with:
          args: |
             -Dsonar.organization=npsimoes
-            -Dsonar.projectKey=teste1_certificado
+            -Dsonar.projectKey=teste3-http
